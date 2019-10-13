@@ -13,12 +13,7 @@
 	INCLUDE	"Hardware.inc"
 
 	; project includes
-	INCLUDE	"blankasm.inc"
-
-	
-;****************************************************************************************************************************************************
-;*	user data (constants)
-;****************************************************************************************************************************************************
+	; INCLUDE	"blankasm.inc"
 
 
 ;****************************************************************************************************************************************************
@@ -27,62 +22,70 @@
 
 
 ;****************************************************************************************************************************************************
+;*	User Variables
+;****************************************************************************************************************************************************
+
+	SECTION "Vars",ROM0
+VIDEO_RAM::
+	DB $80, $00
+
+;****************************************************************************************************************************************************
 ;*	cartridge header
 ;****************************************************************************************************************************************************
 
-	SECTION	"Org $00",HOME[$00]
+	SECTION	"Org $00",ROM0[$00]
 RST_00:	
 	jp	$100
 
-	SECTION	"Org $08",HOME[$08]
+	SECTION	"Org $08",ROM0[$08]
 RST_08:	
 	jp	$100
 
-	SECTION	"Org $10",HOME[$10]
+	SECTION	"Org $10",ROM0[$10]
 RST_10:
 	jp	$100
 
-	SECTION	"Org $18",HOME[$18]
+	SECTION	"Org $18",ROM0[$18]
 RST_18:
 	jp	$100
 
-	SECTION	"Org $20",HOME[$20]
+	SECTION	"Org $20",ROM0[$20]
 RST_20:
 	jp	$100
 
-	SECTION	"Org $28",HOME[$28]
+	SECTION	"Org $28",ROM0[$28]
 RST_28:
 	jp	$100
 
-	SECTION	"Org $30",HOME[$30]
+	SECTION	"Org $30",ROM0[$30]
 RST_30:
 	jp	$100
 
-	SECTION	"Org $38",HOME[$38]
+	SECTION	"Org $38",ROM0[$38]
 RST_38:
 	jp	$100
 
-	SECTION	"V-Blank IRQ Vector",HOME[$40]
+	SECTION	"V-Blank IRQ Vector",ROM0[$40]
 VBL_VECT:
 	reti
 	
-	SECTION	"LCD IRQ Vector",HOME[$48]
+	SECTION	"LCD IRQ Vector",ROM0[$48]
 LCD_VECT:
 	reti
 
-	SECTION	"Timer IRQ Vector",HOME[$50]
+	SECTION	"Timer IRQ Vector",ROM0[$50]
 TIMER_VECT:
 	reti
 
-	SECTION	"Serial IRQ Vector",HOME[$58]
+	SECTION	"Serial IRQ Vector",ROM0[$58]
 SERIAL_VECT:
 	reti
 
-	SECTION	"Joypad IRQ Vector",HOME[$60]
+	SECTION	"Joypad IRQ Vector",ROM0[$60]
 JOYPAD_VECT:
 	reti
 	
-	SECTION	"Start",HOME[$100]
+	SECTION	"Start",ROM0[$100]
 	nop
 	jp	Start
 
@@ -117,7 +120,7 @@ JOYPAD_VECT:
 	DB	$00	; $19 - ROM + MBC5
 
 	; $0148 (ROM size)
-	DB	$00	; $01 - 512Kbit = 64Kbyte = 4 banks
+	DB	$01	; $01 - 512Kbit = 64Kbyte = 4 banks
 
 	; $0149 (RAM size)
 	DB	$00	; $00 - None
@@ -143,10 +146,102 @@ JOYPAD_VECT:
 ;*	Program Start
 ;****************************************************************************************************************************************************
 
-	SECTION "Program Start",HOME[$0150]
+	SECTION "Program Start",ROM0[$0150] ; This code chunk is stored in ROM0 at $0150
 Start::
-	jp Start	;Program Code starts here.
+	;ld A, 5 ;  Load intermediate value into a
+	;ld [$C000], A ; Load A into the memory address $C000
+	
+	; THE ACTUAL STUFF
+	call LOAD_TILE ; Perform a jump here and at 'jp loop' addr to stack
+	call LOAD_TILE_LOOP
+	
+	call CLEAR_MAP
+	call CLEAR_MAP_LOOP
+	
+	call LOAD_MAP
+	call LOAD_MAP_LOOP
+	
+	jp Loop
+
+Loop:: ; Don't let the program crash, just loop forever
+	jp Loop
 	
 
+	SECTION "Subroutines",ROM0
+LOAD_TILE:: ; This is I guess stored at $0003
+	ld de, TILES ; Load the address of the TILES into register pair hl
+	ld hl, $8000 ; Point to VRAM
+	ld bc, 16*2
+	ret ; pop stack and jp to value stored in stack (in this case that would be 'jp loop')
+	
+LOAD_TILE_LOOP::
+	; de contains tile pointer and hl contains VRAM pointer
+	ld A, [de] ; Take the value at the tile pointer and put it into A
+	ld [hl], A
+	inc hl ; increment the VRAM pointer
+	inc de ; increment the Tile pointer
+	dec bc ; decrement our loop register
+	; if b or c != 0
+	ld a, b
+	or c
+	jr NZ, LOAD_TILE_LOOP ; if b or c is not zero, keep looping
+	ret
+
+
+CLEAR_MAP::
+	ld hl, $9800 ; set to top of Map Ram (in VRAM)
+	ld bc, $0401 ; Number of ram address to clear
+	ret
+
+CLEAR_MAP_LOOP::
+	ld [hl], 0 ; set the map to zero
+	inc hl ; inc the map pointer
+	dec bc ; dec the loop counter
+	ld a, b
+	or c
+	jr NZ, CLEAR_MAP_LOOP
+	ret
+	
+LOAD_MAP::
+	ld hl, $9800 ; start hl at the start of MAP0
+	ld de, MAPDATA ; start de at the MAPDATA label
+	ld bc, 8 ; I have 8 tiles I am loading at the moment
+	ret
+
+LOAD_MAP_LOOP::
+	ld a, [de] ; map tile into a
+	ld [hl], a ; a into VRAM
+	inc de
+	inc hl
+	dec bc
+	ld a, b
+	or c
+	jr NZ, LOAD_MAP_LOOP
+	ret
+	
+
+	SECTION "Tile",ROM0 ; This tiledata is stored in ROM0 (somewhere, idc where). Must be transfered to VRAM (first chunk to act as tiledata)
+TILES::
+; EMPTY TILE
+DB $00,$00 ; columns are mirrored (both must be the same value to look right)
+DB $00,$00 ; binary to hex for row of pixels
+DB $00,$00 
+DB $00,$00
+DB $00,$00
+DB $00,$00
+DB $00,$00
+DB $00,$00
+
+DB $00,$00
+DB $24,$24
+DB $00,$00
+DB $42,$42
+DB $3C,$3C
+DB $00,$00
+DB $00,$00
+DB $00,$00
+
+MAPDATA::
+DB $01, $01, $01, $01, $01, $01, $01, $01
 
 ;*** End Of File ***
