@@ -25,10 +25,6 @@
 ;*	User Variables
 ;****************************************************************************************************************************************************
 
-	SECTION "Vars",ROM0
-VIDEO_RAM::
-	DB $80, $00
-
 ;****************************************************************************************************************************************************
 ;*	cartridge header
 ;****************************************************************************************************************************************************
@@ -152,29 +148,56 @@ Start::
 	;ld [$C000], A ; Load A into the memory address $C000
 	
 	; THE ACTUAL STUFF
+	di ; Prevent hardware interrupts
+	ld sp, $FFFE ; set stack to beginning
+	call WAIT_VBLANK
+	
+	ld	a,0		;
+	ldh	[rLCDC],a	;turn off LCD 
+	
 	call LOAD_TILE ; Perform a jump here and at 'jp loop' addr to stack
-	call LOAD_TILE_LOOP
+	call LOAD_LOOP
 	
 	call CLEAR_MAP
 	call CLEAR_MAP_LOOP
 	
 	call LOAD_MAP
-	call LOAD_MAP_LOOP
+	call LOAD_LOOP
+	
+	ld	a,%11100100	;load a normal palette up 11 10 01 00 - dark->light
+	ldh	[rBGP],a	;load the palette
+	
+	ld	a,%10010001		;  =$91 
+	ldh	[rLCDC],a	;turn on the LCD, BG, etc
 	
 	jp Loop
 
 Loop:: ; Don't let the program crash, just loop forever
+	call WAIT_VBLANK
+	ld a, [$FF43] ; Horizontal scroll
+	inc a
+	ld [$FF43], a
+	
+	ld a, [$FF42] ; Vertical scroll
+	inc a
+	ld [$FF42], a
 	jp Loop
 	
 
 	SECTION "Subroutines",ROM0
+WAIT_VBLANK::
+	ldh	a,[rLY]		;get current scanline
+	cp	$91			;Are we in v-blank yet?
+	jp	nz,WAIT_VBLANK	;if A-91 != 0 then loop
+	ret		
+	
 LOAD_TILE:: ; This is I guess stored at $0003
 	ld de, TILES ; Load the address of the TILES into register pair hl
 	ld hl, $8000 ; Point to VRAM
 	ld bc, 16*2
 	ret ; pop stack and jp to value stored in stack (in this case that would be 'jp loop')
 	
-LOAD_TILE_LOOP::
+LOAD_LOOP::
 	; de contains tile pointer and hl contains VRAM pointer
 	ld A, [de] ; Take the value at the tile pointer and put it into A
 	ld [hl], A
@@ -184,7 +207,7 @@ LOAD_TILE_LOOP::
 	; if b or c != 0
 	ld a, b
 	or c
-	jr NZ, LOAD_TILE_LOOP ; if b or c is not zero, keep looping
+	jp NZ, LOAD_LOOP ; if b or c is not zero, keep looping
 	ret
 
 
@@ -194,29 +217,18 @@ CLEAR_MAP::
 	ret
 
 CLEAR_MAP_LOOP::
-	ld [hl], 0 ; set the map to zero
+	ld [hl], 1 ; set the map to zero
 	inc hl ; inc the map pointer
 	dec bc ; dec the loop counter
 	ld a, b
 	or c
-	jr NZ, CLEAR_MAP_LOOP
+	jp NZ, CLEAR_MAP_LOOP
 	ret
 	
 LOAD_MAP::
 	ld hl, $9800 ; start hl at the start of MAP0
 	ld de, MAPDATA ; start de at the MAPDATA label
-	ld bc, 8 ; I have 8 tiles I am loading at the moment
-	ret
-
-LOAD_MAP_LOOP::
-	ld a, [de] ; map tile into a
-	ld [hl], a ; a into VRAM
-	inc de
-	inc hl
-	dec bc
-	ld a, b
-	or c
-	jr NZ, LOAD_MAP_LOOP
+	ld bc, 20*3 ; I have 20 tiles I am loading at the moment
 	ret
 	
 
@@ -232,16 +244,20 @@ DB $00,$00
 DB $00,$00
 DB $00,$00
 
-DB $00,$00
-DB $24,$24
-DB $00,$00
-DB $42,$42
-DB $3C,$3C
-DB $00,$00
-DB $00,$00
-DB $00,$00
+; colors: [top: 1, bottom: 0] = low, [top: 0, bottom: 1] = medium, [top: 1, bottom: 1] = high
+DB $00,%00000000
+DB %00000100,%00100000 
+DB $00,%00000000 
+DB $42,%01000010 
+DB $3C,%00111100 
+DB $00,%00000000 
+DB $00,%00000000 
+DB $00,%00000000 
 
+	SECTION "Map",ROM0
 MAPDATA::
-DB $01, $01, $01, $01, $01, $01, $01, $01
+DB $01, $01, $01, $01, $01, $01, $01, $01, $01, $01, $01, $01, $01, $01, $01, $01, $01, $01, $01, $01
+DB $01, $01, $01, $01, $01, $01, $01, $01, $01, $01, $01, $01, $01, $01, $01, $01, $01, $01, $01, $01
+DB $01, $01, $01, $01, $01, $01, $01, $01, $01, $01, $01, $01, $01, $01, $01, $01, $01, $01, $01, $01
 
 ;*** End Of File ***
