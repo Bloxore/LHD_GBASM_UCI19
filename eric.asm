@@ -144,26 +144,26 @@ JOYPAD_VECT:
 ;************************************
  SECTION "Tiles", ROM0
 
-; Start of tile array. ; each pair of numbers: logical OR the 2 numbers,
+; Start of tile array. ; each pair of numbers: left: 2, right:1;  add to get bit color,
 		       ; then put the binary representation in one row, starting from the top.
 TILES::
-DB %00000000,$00
-DB %00000000,$00
-DB %00000000,$00
-DB %00000000,$00
-DB %00000000,$00
-DB %00000000,$00
-DB %00000000,$00
-DB %00000000,$00
+DB %00000000,%00000000
+DB %00000000,%00000000
+DB %00000000,%00000000
+DB %00000000,%00000000
+DB %00000000,%00000000
+DB %00000000,%00000000
+DB %00000000,%00000000
+DB %00000000,%00000000
 
-DB %00000000,$00
-DB %00100100,$24
-DB %00000000,$00
-DB %01111110,$7E
-DB %01000010,$42
-DB %01000010,$42
-DB %00111100,$3C
-DB %00000000,$00
+DB %00000000,%00000000
+DB %00100100,%00100100
+DB %00000000,%00000000
+DB %01111110,%01111110
+DB %01111110,%01000010
+DB %01000010,%01111110
+DB %00111100,%00111100
+DB %00000000,%00000000
 
 DB %11111111, $FF
 DB %11111111, $FF
@@ -176,8 +176,10 @@ DB %11111111, $FF
 
 SECTION "Map", ROM0
 MAP::
-DB $00, $01, $01, $01, $00, $01, $01, $01, $00, $01, $01, $01, $00, $01, $01, $01
-DB $00, $01, $01, $01,$00, $01, $01, $01,$00, $01, $01, $01,$00, $01, $01, $01
+DB $01,$01,$01,$01,$01,$01,$01,$01
+DB $01,$01,$01,$01,$01,$01,$01,$01
+DB $01,$01,$01,$01,$01,$01,$01,$01
+DB $01,$01,$01,$01,$01,$01,$01,$01
 DB $02
 ;********************************************************************************
 ;*	Program Start
@@ -193,6 +195,7 @@ Start::    ;Program Code starts here.
 	ld a,0
 	ldh [rLCDC],a
 
+
 	call LOAD_TILES ; load tile data starting at address in de
 	call LOAD_LOOP
 
@@ -202,28 +205,68 @@ Start::    ;Program Code starts here.
 	call LOAD_MAP
 	call LOAD_LOOP
 	
+	call LOAD_PALETTE
+
+	ld a, 1
+	ld [$C000], a
+
 	ld a, $91
 	ldh [rLCDC],a
 
 
+Mainloop:
+	call WAIT_VBLANK
 
-DoNothing:  ; hang the program
-	jp DoNothing
-
+	ld a, [$C000]
+	dec a
+	ld [$C000], a
+	cp 0  ; compares a to 0, in this case
+	jp nz, Mainloop
+	
+	ld a, 3
+	ld [$C000], a
+	call SCROLLDOWN
+	call SCROLLLEFT
+	jp Mainloop
 
 
 
 SECTION "Subroutines", ROM0
+
+SCROLLLEFT::  ; $ff42-scrolly , $ff43-scrollx
+	ld a, [$ff43]
+	inc a
+	ld [$ff43], a
+	ret
+SCROLLDOWN::
+	ld a, [$ff42]
+	dec a
+	ld [$ff42], a
+	ret
+SCROLLRIGHT::
+	ld a, [$ff43]
+	dec a
+	ld [$ff43], a
+	ret
+SCROLLUP::
+	ld a, [$ff42]
+	inc a
+	ld [$ff42], a
+	ret
 WAIT_VBLANK::
 	ldh A, [rLY]
 	cp $91
 	jp nz, WAIT_VBLANK
 	ret
+LOAD_PALETTE::
+	ld A, %11100100 ;(11 -> 10 -> 01 -> 00 dark -> light)
+	ldh [rBGP], A
+	ret
 
 LOAD_MAP::
 	ld de, MAP
 	ld hl, $9800
-	ld bc, 41
+	ld bc, 33
 	ret
 
 
