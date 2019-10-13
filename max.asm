@@ -170,19 +170,36 @@ Start::
 	ld	a,%10010001		;  =$91 
 	ldh	[rLCDC],a	;turn on the LCD, BG, etc
 	
+	ld a, 4
+	ld [$c000], a ; store a counter variable in memeory
 	jp Loop
 
 Loop:: ; Don't let the program crash, just loop forever
 	call WAIT_VBLANK
+	ld a, [$c100]
+	dec a ; dec the counter value in register c
+	cp 0 ; compare a to 0. if it's true than the zero flag will be set to TRUE
+	ld [$c100], a
+	jp NZ, SCROLL_X
+	jp Loop
+
+SCROLL_X::
 	ld a, [$FF43] ; Horizontal scroll
 	inc a
-	ld [$FF43], a
+	ld [$FF43], a ; increment the value at the scrollX memory address
+	; reset counter
+	ld a, 4
+	ld [$c000], a ; store a counter variable in memeory
+	ret
 	
+SCROLL_Y::
 	ld a, [$FF42] ; Vertical scroll
 	inc a
 	ld [$FF42], a
-	jp Loop
-	
+	; reset counter
+	ld a, 4
+	ld [$c000], a ; store a counter variable in memeory
+	ret
 
 	SECTION "Subroutines",ROM0
 WAIT_VBLANK::
@@ -217,7 +234,7 @@ CLEAR_MAP::
 	ret
 
 CLEAR_MAP_LOOP::
-	ld [hl], 1 ; set the map to zero
+	ld [hl], 0 ; set the map to zero
 	inc hl ; inc the map pointer
 	dec bc ; dec the loop counter
 	ld a, b
@@ -228,7 +245,7 @@ CLEAR_MAP_LOOP::
 LOAD_MAP::
 	ld hl, $9800 ; start hl at the start of MAP0
 	ld de, MAPDATA ; start de at the MAPDATA label
-	ld bc, 20*3 ; I have 20 tiles I am loading at the moment
+	ld bc, 65 ; I have 20 tiles I am loading at the moment
 	ret
 	
 
@@ -245,19 +262,19 @@ DB $00,$00
 DB $00,$00
 
 ; colors: [top: 1, bottom: 0] = low, [top: 0, bottom: 1] = medium, [top: 1, bottom: 1] = high
-DB $00,%00000000
-DB %00000100,%00100000 
-DB $00,%00000000 
-DB $42,%01000010 
-DB $3C,%00111100 
-DB $00,%00000000 
-DB $00,%00000000 
-DB $00,%00000000 
+DB %00000000,%00111100
+DB %00111100,%01000010 
+DB %00111100,%01100110 
+DB %00111100,%01000010 
+DB %00111100,%01011010 
+DB %00111100,%01000010 
+DB %00000000,%00111100 
+DB %00000000,%00000000 
 
 	SECTION "Map",ROM0
 MAPDATA::
 DB $01, $01, $01, $01, $01, $01, $01, $01, $01, $01, $01, $01, $01, $01, $01, $01, $01, $01, $01, $01
 DB $01, $01, $01, $01, $01, $01, $01, $01, $01, $01, $01, $01, $01, $01, $01, $01, $01, $01, $01, $01
-DB $01, $01, $01, $01, $01, $01, $01, $01, $01, $01, $01, $01, $01, $01, $01, $01, $01, $01, $01, $01
+DB $01, $01, $01, $01, $01, $01, $01, $01, $01, $01, $01, $01, $01, $01, $01, $01, $01, $01, $01, $01, $01, $01, $01, $01, $01
 
 ;*** End Of File ***
